@@ -1,0 +1,7 @@
+# TODO make real requirenments 
+numpy
+soundfile
+torch
+qwen3-tts
+matplotlib
+
