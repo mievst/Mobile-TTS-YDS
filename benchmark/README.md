@@ -6,12 +6,12 @@ Benchmarks for Qwen3-TTS text-to-speech models, comparing vLLM-Omni streaming se
 
 ```bash
 pip install matplotlib aiohttp soundfile numpy tqdm
-pip install qwen_tts  # for HF baseline
+pip install qwen_tts
 ```
 
 ## Quick Start
 
-Run the full benchmark (vllm-omni + HF baseline) with a single command:
+Run the full benchmark (HF baseline) with a single command:
 
 ```bash
 cd benchmarks/qwen3-tts
@@ -23,52 +23,24 @@ Results (JSON + PNG plots) are saved to `results/`.
 ### Common options
 
 ```bash
-# Only vllm-omni (skip HF baseline)
-bash run_benchmark.sh --async-only
 
-# Only HF baseline
-bash run_benchmark.sh --hf-only
 
 # Use a different model (e.g. 1.7B)
-MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice bash run_benchmark.sh --async-only
+MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice bash run_benchmark.sh
 
-# Use bs16 config for higher throughput
-STAGE_CONFIG=vllm_omni/configs/qwen3_tts_bs16.yaml bash run_benchmark.sh --async-only
-
-# Custom GPU, prompt count, concurrency levels
-GPU_DEVICE=1 NUM_PROMPTS=20 CONCURRENCY="1 4" bash run_benchmark.sh
+# Custom GPU, prompt count
+GPU_DEVICE=1 NUM_PROMPTS=20 bash run_benchmark.sh
 ```
 
 ## Manual Steps
 
-### 1) Start the vLLM-Omni server
+### Run HuggingFace baseline
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python -m vllm_omni.entrypoints.cli.main serve \
-    "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice" \
-    --omni --host 127.0.0.1 --port 8000 \
-    --stage-configs-path benchmarks/qwen3-tts/vllm_omni/configs/qwen3_tts_bs1.yaml \
-    --trust-remote-code
-```
-
-### 2) Run online serving benchmark
-
-```bash
-python benchmarks/qwen3-tts/vllm_omni/bench_tts_serve.py \
-    --port 8000 \
-    --num-prompts 50 \
-    --max-concurrency 1 4 10 \
-    --config-name "async_chunk" \
-    --result-dir results/
-```
-
-### 3) Run HuggingFace baseline
-
-```bash
-python benchmarks/qwen3-tts/transformers/bench_tts_hf.py \
+python benchmarks/qwen3-tts/bench_tts_hf.py \
     --model "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice" \
-    --num-prompts 50 \
-    --gpu-device 0 \
+    --num-prompts 0 \
+    --gpu-device 99 \
     --result-dir results/
 ```
 
@@ -76,21 +48,10 @@ python benchmarks/qwen3-tts/transformers/bench_tts_hf.py \
 
 ```bash
 python benchmarks/qwen3-tts/plot_results.py \
-    --results results/bench_async_chunk_*.json results/bench_hf_transformers_*.json \
-    --labels "vllm-omni" "hf_transformers" \
+    --results results/bench_hf_transformers_*.json \
+    --labels "hf_transformers" \
     --output results/comparison.png
 ```
-
-## Stage Configs
-
-| Config | max_num_seqs | Description |
-|--------|:------------:|-------------|
-| `vllm_omni/configs/qwen3_tts_bs1.yaml` | 1 | Single-request processing (lowest latency) |
-| `vllm_omni/configs/qwen3_tts_bs16.yaml` | 16 | High-throughput concurrent processing |
-
-All configs use a 2-stage pipeline (Talker -> Code2Wav) with `async_chunk` streaming enabled. The `SharedMemoryConnector` streams codec frames (25-frame chunks with 25-frame context overlap) between stages.
-
-The model is specified via the CLI `--model` flag (or `MODEL` env var), so the same configs work for both the 0.6B and 1.7B model variants.
 
 ## Metrics
 
