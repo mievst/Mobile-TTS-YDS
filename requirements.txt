@@ -1,4 +1,3 @@
-# TODO make real requirenments 
 numpy
 soundfile
 torch

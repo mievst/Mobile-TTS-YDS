@@ -11,7 +11,7 @@ Usage:
         --gpu-device 0 \
         --result-dir results/
 """
-
+import os
 import argparse
 import json
 import time
@@ -23,28 +23,9 @@ import numpy as np
 import soundfile as sf
 import torch
 
-PROMPTS = [
-    "Hello, welcome to the voice synthesis benchmark test.",
-    "She said she would be here by noon, but nobody showed up.",
-    "The quick brown fox jumps over the lazy dog near the riverbank.",
-    "I can't believe how beautiful the sunset looks from up here on the mountain.",
-    "Please remember to bring your identification documents to the appointment tomorrow morning.",
-    "Have you ever wondered what it would be like to travel through time and visit ancient civilizations?",
-    "The restaurant on the corner serves the best pasta I have ever tasted in my entire life.",
-    "After the meeting, we should discuss the quarterly results and plan for the next phase.",
-    "Learning a new language takes patience, practice, and a genuine curiosity about other cultures.",
-    "The train leaves at half past seven, so we need to arrive at the station before then.",
-    "Could you please turn down the music a little bit, I'm trying to concentrate on my work.",
-    "It was a dark and stormy night when the old lighthouse keeper heard a knock at the door.",
-        """
-        Custom promt. Yandex school of data analysis, effective maching learning models and neural networks architechures. 
-        This course focuses on computational efficiency in modern machine learning, particularly in the context of large-scale language models (LLM).
-        It examines hardware-aware optimization methods: GPU kernel programming, quantization, pruning, model compilation,
-        as well as automated architecture and hyperparameter selection. Students gain practical skills through profiling, low-level programming (Triton),
-        and the implementation of a final project.
-    """
-]
+file_dir = os.path.dirname(os.path.realpath(__file__))
 
+PROMPTS = [line.rstrip() for line in open(file_dir + "/requests.txt", 'r').readlines()]
 
 @dataclass
 class BenchmarkResult:
@@ -85,18 +66,27 @@ class BenchmarkResult:
 def run_benchmark(args):
     from qwen_tts import Qwen3TTSModel
 
-    device = args.gpu_device
+    device = {args.gpu_device} if args.gpu_device.isdigit() and 0 <= int(args.gpu_device) <= 8 else "cpu"
     print(f"Loading model: {args.model} on {device}")
-    model = Qwen3TTSModel.from_pretrained(
-        args.model,
-        device_map=device,
-        dtype=torch.bfloat16,
-    )
+    if device == "cpu":
+        model = Qwen3TTSModel.from_pretrained(
+            args.model,
+            dtype=torch.bfloat16,
+        )
+    else:
+        model = Qwen3TTSModel.from_pretrained(
+            args.model,
+            device_map=device,
+            dtype=torch.bfloat16,
+        )
+
     print("Model loaded.")
+    if not args.num_prompts:
+        args.num_prompts = len(PROMPTS)
 
     # Build prompt list
     prompts = [PROMPTS[i % len(PROMPTS)] for i in range(args.num_prompts)]
-
+    print(f"Number of promts: {len(prompts)}")
     # Warmup
     if args.num_warmups > 0:
         print(f"Warming up with {args.num_warmups} requests...")
@@ -107,8 +97,8 @@ def run_benchmark(args):
                 language=args.language,
                 speaker=args.voice,
             )
-        # Sync GPU
-        torch.cuda.synchronize(device)
+        if device != "cpu":
+            torch.cuda.synchronize(device)
         print("Warmup done.")
 
     # Benchmark
@@ -120,7 +110,7 @@ def run_benchmark(args):
     failed = 0
 
     audio_dir = None
-    if args.save_audio:
+    if args.save_audio != False:
         audio_dir = Path(args.result_dir) / "audio_hf"
         audio_dir.mkdir(parents=True, exist_ok=True)
 
@@ -128,7 +118,8 @@ def run_benchmark(args):
 
     for i, prompt in enumerate(prompts):
         try:
-            torch.cuda.synchronize(device)
+            if device != "cpu":
+                torch.cuda.synchronize(device)
             st = time.perf_counter()
 
             wavs, sr = model.generate_custom_voice(
@@ -136,8 +127,8 @@ def run_benchmark(args):
                 language=args.language,
                 speaker=args.voice,
             )
-
-            torch.cuda.synchronize(device)
+            if device != "cpu":
+                torch.cuda.synchronize(device)
             elapsed = time.perf_counter() - st
 
             # Compute audio duration
@@ -164,7 +155,7 @@ def run_benchmark(args):
             if audio_dir:
                 sf.write(str(audio_dir / f"output_{i:04d}.wav"), audio_samples, sr)
 
-            if (i + 1) % 10 == 0 or i == 0:
+            if True:
                 print(
                     f"  [{i + 1}/{args.num_prompts}] e2e={elapsed * 1000:.0f}ms  rtf={rtf:.3f}  audio={audio_dur:.2f}s"
                 )
@@ -279,7 +270,7 @@ def parse_args():
         "--config-name", type=str, default="hf_transformers", help="Label for this config (used in filenames)"
     )
     parser.add_argument("--result-dir", type=str, default="results")
-    parser.add_argument("--save-audio", action="store_true", help="Save generated audio files")
+    parser.add_argument("--save-audio", action="store_true", help="Save generated audio files", default=True)
     return parser.parse_args()
 
 
