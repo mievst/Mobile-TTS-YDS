@@ -1,0 +1,6 @@
+numpy
+soundfile
+torch
+qwen3-tts
+matplotlib
+
