@@ -1,0 +1,43 @@
+# Ignore Git metadata
+.git
+.gitignore
+
+# Ignore Python cache and compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Ignore virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Ignore editor and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.DS_Store
+Thumbs.db
+
+# Ignore test and build artifacts
+.pytest_cache/
+.mypy_cache/
+build/
+dist/
+*.egg-info/
+
+# Ignore logs and temporary outputs
+*.log
+logs/
+/tmp
+temp/
+benchmark/tmp_results/
+
+# Ignore Docker compose overrides and local config
+docker-compose.override.yml
+
+# Ignore local environment files
+*.env

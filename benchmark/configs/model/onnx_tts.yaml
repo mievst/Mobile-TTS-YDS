@@ -1,0 +1,10 @@
+_target_: quality.model_adapters.onnx_adapter.OnnxTTSAdapter
+onnx_model_path: /path/to/model.onnx
+language_map:
+  ru: Russian
+  en: English
+sample_rate: 16000
+device: cpu
+input_text_name: input_text
+language_input_name: language
+output_audio_name: audio

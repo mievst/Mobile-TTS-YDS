@@ -3,4 +3,10 @@ soundfile
 torch
 qwen3-tts
 matplotlib
+hydra-core
+datasets
+jiwer
+faster-whisper
+torchmetrics
+tqdm
 

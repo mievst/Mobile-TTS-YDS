@@ -1,0 +1,15 @@
+defaults:
+  - model: qwen_06b
+  - dataset: ru_en_10
+  - metrics: default
+  - experiment: base
+  - _self_
+
+run:
+  seed: 42
+  config_name: quality_default
+  result_dir: benchmark/tmp_results/quality
+
+hydra:
+  run:
+    dir: .
