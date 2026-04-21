@@ -255,7 +255,7 @@ com.example.qwen3_tts
 `Speaker Spinner` - Выбор спикера по имени из speaker_ids.json  
 `Generate Speech` - Запуск инференса и получение итогового WAV  
 `Play Output` - Воспроизведение последнего сохраненного (синтезированного) аудио  
-`Stop` - Остановка аудио  
+`Stop Playback` - Остановка аудио  
 <img width="255" height="428" alt="App Snapshot" src="https://github.com/user-attachments/assets/9b50c7d9-1415-44c4-b471-218e6325dbfb" />
 
 # 9. TODO
