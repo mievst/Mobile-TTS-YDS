@@ -1,10 +1,13 @@
 package com.example.qwen3_tts.data.repository
 
+import com.example.qwen3_tts.data.npy.NpyFloatRowReader
+import com.example.qwen3_tts.data.npy.NpyHalfRowReader
+import com.example.qwen3_tts.data.npy.NpyReader
+import com.example.qwen3_tts.data.npy.NpyFormat
 import java.io.Closeable
 import java.io.File
+import java.io.RandomAccessFile
 import kotlin.math.sqrt
-import com.example.qwen3_tts.data.npy.NpyReader
-import com.example.qwen3_tts.data.npy.NpyFloatRowReader
 
 class QwenEmbeddingRepository(
     private val modelRepository: QwenModelRepository,
@@ -13,9 +16,27 @@ class QwenEmbeddingRepository(
 
     private val npyReader = NpyReader()
 
-    private var textEmbeddingRowReader: NpyFloatRowReader? = null
-    private var talkerCodecEmbeddingRowReader: NpyFloatRowReader? = null
-    private val cpCodecEmbeddingReaders = mutableMapOf<Int, NpyFloatRowReader>()
+    private interface RowSource : Closeable {
+        fun readRowAsFloat(rowIndex: Int): FloatArray
+    }
+
+    private class FloatRowSource(
+        private val reader: NpyFloatRowReader
+    ) : RowSource {
+        override fun readRowAsFloat(rowIndex: Int): FloatArray = reader.readRow(rowIndex)
+        override fun close() = reader.close()
+    }
+
+    private class HalfRowSource(
+        private val reader: NpyHalfRowReader
+    ) : RowSource {
+        override fun readRowAsFloat(rowIndex: Int): FloatArray = reader.readRowAsFloat(rowIndex)
+        override fun close() = reader.close()
+    }
+
+    private var textEmbeddingRowSource: RowSource? = null
+    private var talkerCodecEmbeddingRowSource: RowSource? = null
+    private val cpCodecEmbeddingSources = mutableMapOf<Int, RowSource>()
 
     private var textProjectionFc1WeightCache: NpyReader.NpyFloatArray? = null
     private var textProjectionFc1BiasCache: NpyReader.NpyFloatArray? = null
@@ -23,12 +44,12 @@ class QwenEmbeddingRepository(
     private var textProjectionFc2BiasCache: NpyReader.NpyFloatArray? = null
 
     fun loadRequiredCoreEmbeddings() {
-        textEmbeddingRowReader = NpyFloatRowReader(modelRepository.getEmbeddingFile("text_embedding.npy"))
-        talkerCodecEmbeddingRowReader = NpyFloatRowReader(modelRepository.getEmbeddingFile("talker_codec_embedding.npy"))
+        textEmbeddingRowSource = openRowSource(modelRepository.getEmbeddingFile("text_embedding.npy"))
+        talkerCodecEmbeddingRowSource = openRowSource(modelRepository.getEmbeddingFile("talker_codec_embedding.npy"))
 
         for (i in 0 until 15) {
-            cpCodecEmbeddingReaders[i] =
-                NpyFloatRowReader(modelRepository.getEmbeddingFile("cp_codec_embedding_$i.npy"))
+            cpCodecEmbeddingSources[i] =
+                openRowSource(modelRepository.getEmbeddingFile("cp_codec_embedding_$i.npy"))
         }
 
         textProjectionFc1WeightCache = loadSmallEmbeddingFile("text_projection_fc1_weight.npy")
@@ -38,19 +59,23 @@ class QwenEmbeddingRepository(
     }
 
     fun textEmbeddingRow(tokenId: Int): FloatArray {
-        val reader = requireNotNull(textEmbeddingRowReader) { "text_embedding.npy row reader not loaded" }
-        return reader.readRow(tokenId)
+        val source = requireNotNull(textEmbeddingRowSource) {
+            "text_embedding.npy row source not loaded"
+        }
+        return source.readRowAsFloat(tokenId)
     }
 
     fun talkerCodecEmbeddingRow(tokenId: Int): FloatArray {
-        val reader = requireNotNull(talkerCodecEmbeddingRowReader) { "talker_codec_embedding.npy row reader not loaded" }
-        return reader.readRow(tokenId)
+        val source = requireNotNull(talkerCodecEmbeddingRowSource) {
+            "talker_codec_embedding.npy row source not loaded"
+        }
+        return source.readRowAsFloat(tokenId)
     }
 
     fun cpCodecEmbeddingRow(groupIndex: Int, tokenId: Int): FloatArray {
-        val reader = cpCodecEmbeddingReaders[groupIndex]
-            ?: error("cp_codec_embedding_$groupIndex.npy reader not loaded")
-        return reader.readRow(tokenId)
+        val source = cpCodecEmbeddingSources[groupIndex]
+            ?: error("cp_codec_embedding_$groupIndex.npy source not loaded")
+        return source.readRowAsFloat(tokenId)
     }
 
     fun textProjection(input2048: FloatArray): FloatArray {
@@ -99,19 +124,29 @@ class QwenEmbeddingRepository(
     }
 
     override fun close() {
-        textEmbeddingRowReader?.close()
-        talkerCodecEmbeddingRowReader?.close()
-        cpCodecEmbeddingReaders.values.forEach { it.close() }
+        textEmbeddingRowSource?.close()
+        talkerCodecEmbeddingRowSource?.close()
+        cpCodecEmbeddingSources.values.forEach { it.close() }
 
-        textEmbeddingRowReader = null
-        talkerCodecEmbeddingRowReader = null
-        cpCodecEmbeddingReaders.clear()
+        textEmbeddingRowSource = null
+        talkerCodecEmbeddingRowSource = null
+        cpCodecEmbeddingSources.clear()
+    }
+
+    private fun openRowSource(file: File): RowSource {
+        val dtype = RandomAccessFile(file, "r").use { raf ->
+            NpyFormat.readMetadataFromRaf(file, raf).dtype
+        }
+
+        return when (dtype) {
+            NpyFormat.DType.FLOAT32 -> FloatRowSource(NpyFloatRowReader(file))
+            NpyFormat.DType.FLOAT16 -> HalfRowSource(NpyHalfRowReader(file))
+        }
     }
 
     private fun loadSmallEmbeddingFile(name: String): NpyReader.NpyFloatArray {
         val file: File = modelRepository.getEmbeddingFile(name)
-        val arr = npyReader.readFloatArray(file)
-        return arr
+        return npyReader.readFloatArray(file)
     }
 
     private fun GeLU(x: Double): Double {

@@ -3,7 +3,6 @@ package com.example.qwen3_tts.inference.runners
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
-import ai.onnxruntime.TensorInfo
 import java.io.File
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
@@ -217,9 +216,7 @@ class QwenCodePredictorLoopRunner(
 
         val hitEos = group0Raw == config.talker.codecEosTokenId
         val group0 = mapTalkerTokenToCodecRange(group0Raw, config)
-
         val group0Embed = embeddings.talkerCodecEmbeddingRow(group0)
-
         val allCodes = mutableListOf<Int>()
         allCodes.add(group0)
 
@@ -231,8 +228,8 @@ class QwenCodePredictorLoopRunner(
             talkerHiddenLast.copyInto(it, 0)
             group0Embed.copyInto(it, hiddenSize)
         }
-        var currentSeqLen = 2
 
+        var currentSeqLen = 2
         var finalPresentKeys = FloatArray(0)
         var finalPresentValues = FloatArray(0)
         var finalPresentKeysShape: LongArray? = null
@@ -240,7 +237,6 @@ class QwenCodePredictorLoopRunner(
 
         for (groupIdx in 1 until 16) {
             val generationStep = longArrayOf((groupIdx - 1).toLong())
-
             val inputsEmbedsTensor = OnnxTensor.createTensor(
                 env,
                 FloatBuffer.wrap(currentInputEmbeds),
@@ -287,10 +283,6 @@ class QwenCodePredictorLoopRunner(
                                     outputs.firstOrNull { it.key == "present_values" }?.value as? OnnxTensor
                                         ?: error("Missing code_predictor present_values at groupIdx=$groupIdx")
 
-                                val logitsShape = (logitsTensor.info as? TensorInfo)?.shape
-                                finalPresentKeysShape = (presentKeysTensor.info as? TensorInfo)?.shape
-                                finalPresentValuesShape = (presentValuesTensor.info as? TensorInfo)?.shape
-
                                 val logits = logitsTensor.floatBuffer.let {
                                     val arr = FloatArray(it.remaining())
                                     it.get(arr)
@@ -317,7 +309,6 @@ class QwenCodePredictorLoopRunner(
                                 )
 
                                 allCodes.add(predictedToken)
-
                                 finalPresentKeys = presentKeys
                                 finalPresentValues = presentValues
                                 pastKeys = presentKeys

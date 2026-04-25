@@ -179,7 +179,6 @@ class QwenTtsPipeline(
                 )
 
                 waveformParts.add(normalizedChunkWaveform)
-//                waveformParts.add(vocoderResult.waveform)
 
                 val chunkDoneProgress = 20 + (((chunkIndex + 1) * 55) / totalChunks)
                 reportProgress(

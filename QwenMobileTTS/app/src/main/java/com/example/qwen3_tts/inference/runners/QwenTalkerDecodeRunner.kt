@@ -36,10 +36,6 @@ class QwenTalkerDecodeRunner(
         val numKvHeads = config.talker.numKeyValueHeads
         val headDim = config.talker.headDim
 
-        require(nextInputEmbeds.size == hiddenSize) {
-            "nextInputEmbeds size must be $hiddenSize, got ${nextInputEmbeds.size}"
-        }
-
         val previousPresentKeysShape = requireNotNull(previousDecodeResult.presentKeysShape) {
             "previousDecodeResult.presentKeysShape is null"
         }

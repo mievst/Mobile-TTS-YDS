@@ -18,19 +18,24 @@ class NpyReader {
         val bytes = file.readBytes()
 
         val elementCount = metadata.shape.fold(1) { acc, dim -> acc * dim }
-        val expectedBytes = elementCount * 4
-
-        require(metadata.dataOffset + expectedBytes <= bytes.size) {
-            "NPY data truncated in ${file.name}: expected $expectedBytes bytes of data"
-        }
+        val expectedBytes = elementCount * metadata.dtype.bytesPerElement
 
         val floatData = FloatArray(elementCount)
         val buffer = ByteBuffer
             .wrap(bytes, metadata.dataOffset, expectedBytes)
             .order(ByteOrder.LITTLE_ENDIAN)
 
-        for (i in 0 until elementCount) {
-            floatData[i] = buffer.getFloat()
+        when (metadata.dtype) {
+            NpyFormat.DType.FLOAT32 -> {
+                for (i in 0 until elementCount) {
+                    floatData[i] = buffer.getFloat()
+                }
+            }
+            NpyFormat.DType.FLOAT16 -> {
+                for (i in 0 until elementCount) {
+                    floatData[i] = halfToFloat(buffer.short)
+                }
+            }
         }
 
         return NpyFloatArray(
@@ -42,7 +47,6 @@ class NpyReader {
 
 class NpyFloatRowReader(file: File) : AutoCloseable {
 
-    val filePath: String = file.absolutePath
     val shape: IntArray
     val rows: Int
     val cols: Int
@@ -52,11 +56,6 @@ class NpyFloatRowReader(file: File) : AutoCloseable {
 
     init {
         val metadata = NpyFormat.readMetadataFromRaf(file, raf)
-
-        require(metadata.shape.size == 2) {
-            "NpyFloatRowReader expects rank-2 array, got ${metadata.shape.contentToString()} in ${file.name}"
-        }
-
         shape = metadata.shape
         rows = shape[0]
         cols = shape[1]
@@ -88,16 +87,69 @@ class NpyFloatRowReader(file: File) : AutoCloseable {
     }
 }
 
-private object NpyFormat {
+class NpyHalfRowReader(file: File) : AutoCloseable {
 
-    private val ASCII: Charset = Charsets.US_ASCII
+    val shape: IntArray
+    val rows: Int
+    val cols: Int
+
+    private val raf: RandomAccessFile = RandomAccessFile(file, "r")
+    private val dataOffset: Long
+
+    init {
+        val metadata = NpyFormat.readMetadataFromRaf(file, raf)
+        shape = metadata.shape
+        rows = shape[0]
+        cols = shape[1]
+        dataOffset = metadata.dataOffset.toLong()
+    }
+
+    fun readRowHalf(rowIndex: Int): ShortArray {
+        val rowByteCount = cols * 2
+        val offset = dataOffset + rowIndex.toLong() * rowByteCount.toLong()
+
+        val rowBytes = ByteArray(rowByteCount)
+        raf.seek(offset)
+        raf.readFully(rowBytes)
+
+        val buffer = ByteBuffer.wrap(rowBytes).order(ByteOrder.LITTLE_ENDIAN)
+        val result = ShortArray(cols)
+        for (i in 0 until cols) {
+            result[i] = buffer.short
+        }
+        return result
+    }
+
+    fun readRowAsFloat(rowIndex: Int): FloatArray {
+        val halfRow = readRowHalf(rowIndex)
+        val out = FloatArray(halfRow.size)
+        for (i in halfRow.indices) {
+            out[i] = halfToFloat(halfRow[i])
+        }
+        return out
+    }
+
+    override fun close() {
+        raf.close()
+    }
+}
+
+internal object NpyFormat {
+
+    enum class DType(val bytesPerElement: Int) {
+        FLOAT16(2),
+        FLOAT32(4)
+    }
 
     data class Metadata(
         val major: Int,
         val minor: Int,
         val shape: IntArray,
-        val dataOffset: Int
+        val dataOffset: Int,
+        val dtype: DType
     )
+
+    private val ASCII: Charset = Charsets.US_ASCII
 
     fun readMetadataFromBytes(file: File): Metadata {
         require(file.exists()) { "NPY file does not exist: ${file.absolutePath}" }
@@ -154,7 +206,6 @@ private object NpyFormat {
 
         val magic = ByteArray(6)
         raf.readFully(magic)
-
         validateMagic(magic, file.name)
 
         val major = raf.readUnsignedByte()
@@ -194,25 +245,23 @@ private object NpyFormat {
         val descr = extractHeaderValue(header, "'descr':")
             ?: throw IllegalArgumentException("NPY header missing descr in $fileName")
 
-        val fortranOrderRaw = extractHeaderValue(header, "'fortran_order':")
-            ?: throw IllegalArgumentException("NPY header missing fortran_order in $fileName")
-
         val shapeRaw = extractShape(header)
             ?: throw IllegalArgumentException("NPY header missing shape in $fileName")
 
-        require(descr.contains("<f4")) {
-            "Only little-endian float32 supported. Got descr=$descr in $fileName"
-        }
-
-        require(fortranOrderRaw.contains("False")) {
-            "Fortran-order arrays not supported in $fileName"
+        val dtype = when {
+            descr.contains("<f4") -> DType.FLOAT32
+            descr.contains("<f2") -> DType.FLOAT16
+            else -> throw IllegalArgumentException(
+                "Only little-endian float32/float16 supported. Got descr=$descr in $fileName"
+            )
         }
 
         return Metadata(
             major = major,
             minor = minor,
             shape = parseShape(shapeRaw),
-            dataOffset = dataOffset
+            dataOffset = dataOffset,
+            dtype = dtype
         )
     }
 
@@ -256,4 +305,35 @@ private object NpyFormat {
             .map { it.toInt() }
             .toIntArray()
     }
+}
+
+internal fun halfToFloat(h: Short): Float {
+    val bits = h.toInt() and 0xFFFF
+    val sign = (bits ushr 15) and 0x1
+    val exp = (bits ushr 10) and 0x1F
+    val mant = bits and 0x3FF
+
+    val fbits = when {
+        exp == 0 -> {
+            if (mant == 0) {
+                sign shl 31
+            } else {
+                var e = -1
+                var m = mant
+                while ((m and 0x400) == 0) {
+                    e++
+                    m = m shl 1
+                }
+                m = m and 0x3FF
+                (sign shl 31) or ((127 - 15 - e) shl 23) or (m shl 13)
+            }
+        }
+        exp == 31 -> {
+            (sign shl 31) or 0x7F800000 or (mant shl 13)
+        }
+        else -> {
+            (sign shl 31) or ((exp + (127 - 15)) shl 23) or (mant shl 13)
+        }
+    }
+    return Float.fromBits(fbits)
 }
