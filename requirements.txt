@@ -1,7 +1,7 @@
 numpy
 soundfile
 torch
-qwen3-tts
+qwen-tts
 matplotlib
 hydra-core
 datasets
