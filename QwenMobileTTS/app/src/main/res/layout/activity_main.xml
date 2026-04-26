@@ -31,7 +31,7 @@
             android:hint="Enter text to synthesize"
             android:inputType="textMultiLine|textCapSentences"
             android:minLines="8"
-            android:text="I live in a house near the mountains. I have two brothers and one sister. My father teaches mathematics, and my mother is a nurse at a big hospital." />
+            android:text="Hello from Android demo app!" />
 
         <Button
             android:id="@+id/btnGenerate"

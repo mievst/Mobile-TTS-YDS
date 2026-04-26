@@ -3,7 +3,6 @@ package com.example.qwen3_tts.inference.runners
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
-import java.io.File
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
 import com.example.qwen3_tts.config.QwenConfigLoader
@@ -61,44 +60,6 @@ class QwenCodePredictorLoopRunner(
         )
     }
 
-//    fun runFromDecode(
-//        modelFile: File,
-//        config: QwenConfigLoader.FullConfig,
-//        decodeResult: QwenTalkerDecodeRunner.DecodeRunResult,
-//        embeddings: QwenEmbeddingRepository,
-//        previousGroup0Tokens: List<Int> = emptyList(),
-//        temperature: Float = 1.0f,
-//        topK: Int = 50,
-//        repetitionPenalty: Float = 1.1f,
-//        minNewTokens: Int = 0,
-//        step: Int = 0
-//    ): FullCodebookResult {
-//        require(modelFile.exists()) { "code_predictor model does not exist: ${modelFile.absolutePath}" }
-//        require(modelFile.length() > 0L) { "code_predictor model is empty: ${modelFile.absolutePath}" }
-//
-//        val env = OrtEnvironment.getEnvironment()
-//        val sessionOptions = OrtSession.SessionOptions()
-//        val session = env.createSession(modelFile.absolutePath, sessionOptions)
-//
-//        try {
-//            return runFromDecode(
-//                session = session,
-//                config = config,
-//                decodeResult = decodeResult,
-//                embeddings = embeddings,
-//                previousGroup0Tokens = previousGroup0Tokens,
-//                temperature = temperature,
-//                topK = topK,
-//                repetitionPenalty = repetitionPenalty,
-//                minNewTokens = minNewTokens,
-//                step = step
-//            )
-//        } finally {
-//            session.close()
-//            sessionOptions.close()
-//        }
-//    }
-
     fun runFromPrefill(
         session: OrtSession,
         config: QwenConfigLoader.FullConfig,
@@ -138,44 +99,6 @@ class QwenCodePredictorLoopRunner(
         )
     }
 
-    fun runFromPrefill(
-        modelFile: File,
-        config: QwenConfigLoader.FullConfig,
-        prefillResult: QwenTalkerPrefillRunner.PrefillRunResult,
-        embeddings: QwenEmbeddingRepository,
-        previousGroup0Tokens: List<Int> = emptyList(),
-        temperature: Float = 1.0f,
-        topK: Int = 50,
-        repetitionPenalty: Float = 1.1f,
-        minNewTokens: Int = 0,
-        step: Int = 0
-    ): FullCodebookResult {
-        require(modelFile.exists()) { "code_predictor model does not exist: ${modelFile.absolutePath}" }
-        require(modelFile.length() > 0L) { "code_predictor model is empty: ${modelFile.absolutePath}" }
-
-        val env = OrtEnvironment.getEnvironment()
-        val sessionOptions = OrtSession.SessionOptions()
-        val session = env.createSession(modelFile.absolutePath, sessionOptions)
-
-        try {
-            return runFromPrefill(
-                session = session,
-                config = config,
-                prefillResult = prefillResult,
-                embeddings = embeddings,
-                previousGroup0Tokens = previousGroup0Tokens,
-                temperature = temperature,
-                topK = topK,
-                repetitionPenalty = repetitionPenalty,
-                minNewTokens = minNewTokens,
-                step = step
-            )
-        } finally {
-            session.close()
-            sessionOptions.close()
-        }
-    }
-
     private fun runInternal(
         session: OrtSession,
         config: QwenConfigLoader.FullConfig,
@@ -190,7 +113,6 @@ class QwenCodePredictorLoopRunner(
         step: Int
     ): FullCodebookResult {
         val env = OrtEnvironment.getEnvironment()
-
         val hiddenSize = config.talker.hiddenSize
         val cpLayers = config.codePredictor.numHiddenLayers
         val cpKvHeads = config.codePredictor.numKeyValueHeads
