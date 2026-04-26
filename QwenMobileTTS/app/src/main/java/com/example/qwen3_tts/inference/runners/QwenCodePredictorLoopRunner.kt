@@ -61,43 +61,43 @@ class QwenCodePredictorLoopRunner(
         )
     }
 
-    fun runFromDecode(
-        modelFile: File,
-        config: QwenConfigLoader.FullConfig,
-        decodeResult: QwenTalkerDecodeRunner.DecodeRunResult,
-        embeddings: QwenEmbeddingRepository,
-        previousGroup0Tokens: List<Int> = emptyList(),
-        temperature: Float = 1.0f,
-        topK: Int = 50,
-        repetitionPenalty: Float = 1.1f,
-        minNewTokens: Int = 0,
-        step: Int = 0
-    ): FullCodebookResult {
-        require(modelFile.exists()) { "code_predictor model does not exist: ${modelFile.absolutePath}" }
-        require(modelFile.length() > 0L) { "code_predictor model is empty: ${modelFile.absolutePath}" }
-
-        val env = OrtEnvironment.getEnvironment()
-        val sessionOptions = OrtSession.SessionOptions()
-        val session = env.createSession(modelFile.absolutePath, sessionOptions)
-
-        try {
-            return runFromDecode(
-                session = session,
-                config = config,
-                decodeResult = decodeResult,
-                embeddings = embeddings,
-                previousGroup0Tokens = previousGroup0Tokens,
-                temperature = temperature,
-                topK = topK,
-                repetitionPenalty = repetitionPenalty,
-                minNewTokens = minNewTokens,
-                step = step
-            )
-        } finally {
-            session.close()
-            sessionOptions.close()
-        }
-    }
+//    fun runFromDecode(
+//        modelFile: File,
+//        config: QwenConfigLoader.FullConfig,
+//        decodeResult: QwenTalkerDecodeRunner.DecodeRunResult,
+//        embeddings: QwenEmbeddingRepository,
+//        previousGroup0Tokens: List<Int> = emptyList(),
+//        temperature: Float = 1.0f,
+//        topK: Int = 50,
+//        repetitionPenalty: Float = 1.1f,
+//        minNewTokens: Int = 0,
+//        step: Int = 0
+//    ): FullCodebookResult {
+//        require(modelFile.exists()) { "code_predictor model does not exist: ${modelFile.absolutePath}" }
+//        require(modelFile.length() > 0L) { "code_predictor model is empty: ${modelFile.absolutePath}" }
+//
+//        val env = OrtEnvironment.getEnvironment()
+//        val sessionOptions = OrtSession.SessionOptions()
+//        val session = env.createSession(modelFile.absolutePath, sessionOptions)
+//
+//        try {
+//            return runFromDecode(
+//                session = session,
+//                config = config,
+//                decodeResult = decodeResult,
+//                embeddings = embeddings,
+//                previousGroup0Tokens = previousGroup0Tokens,
+//                temperature = temperature,
+//                topK = topK,
+//                repetitionPenalty = repetitionPenalty,
+//                minNewTokens = minNewTokens,
+//                step = step
+//            )
+//        } finally {
+//            session.close()
+//            sessionOptions.close()
+//        }
+//    }
 
     fun runFromPrefill(
         session: OrtSession,
@@ -232,8 +232,8 @@ class QwenCodePredictorLoopRunner(
         var currentSeqLen = 2
         var finalPresentKeys = FloatArray(0)
         var finalPresentValues = FloatArray(0)
-        var finalPresentKeysShape: LongArray? = null
-        var finalPresentValuesShape: LongArray? = null
+        val finalPresentKeysShape: LongArray? = null
+        val finalPresentValuesShape: LongArray? = null
 
         for (groupIdx in 1 until 16) {
             val generationStep = longArrayOf((groupIdx - 1).toLong())

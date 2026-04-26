@@ -1,8 +1,15 @@
-package com.example.qwen3_tts.inference.runners
+package com.example.qwen3_tts.domain.pipeline
 
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
 import com.example.qwen3_tts.config.QwenConfigLoader
-import com.example.qwen3_tts.data.repository.*
-import com.example.qwen3_tts.domain.builders.*
+import com.example.qwen3_tts.data.repository.QwenEmbeddingRepository
+import com.example.qwen3_tts.data.repository.QwenModelRepository
+import com.example.qwen3_tts.domain.builders.QwenNextInputBuilder
+import com.example.qwen3_tts.domain.builders.QwenPrefillBuilder
+import com.example.qwen3_tts.inference.runners.QwenCodePredictorLoopRunner
+import com.example.qwen3_tts.inference.runners.QwenTalkerDecodeRunner
+import com.example.qwen3_tts.inference.runners.QwenTalkerPrefillRunner
 
 class QwenGenerateCodesRunner(
     private val tag: String = "Qwen3TTS"
@@ -30,6 +37,8 @@ class QwenGenerateCodesRunner(
         require(tokenIds.isNotEmpty()) { "tokenIds must not be empty" }
         require(maxNewTokens > 0) { "maxNewTokens must be > 0" }
 
+        val env = OrtEnvironment.getEnvironment()
+
         val prefillBuilder = QwenPrefillBuilder(tag)
         val talkerPrefillRunner = QwenTalkerPrefillRunner(tag)
         val talkerDecodeRunner = QwenTalkerDecodeRunner(tag)
@@ -44,97 +53,116 @@ class QwenGenerateCodesRunner(
             speakerId = speakerId
         )
 
-        val talkerPrefillFile = repo.getModelFile("talker_prefill.onnx")
-        val talkerDecodeFile = repo.getModelFile("talker_decode.onnx")
-        val codePredictorFile = repo.getModelFile("code_predictor.onnx")
-
-        val prefillRunResult = talkerPrefillRunner.run(
-            modelFile = talkerPrefillFile,
-            prefill = prefill
-        )
+        val prefillRunResult = OrtSession.SessionOptions().use { options ->
+            env.createSession(
+                repo.getModelFile("talker_prefill.onnx").absolutePath,
+                options
+            ).use { prefillSession ->
+                talkerPrefillRunner.run(
+                    session = prefillSession,
+                    prefill = prefill
+                )
+            }
+        }
 
         val generatedSteps = mutableListOf<List<Int>>()
         val generatedGroup0Tokens = mutableListOf<Int>()
 
-        val timestep0 = codePredictorLoopRunner.runFromPrefill(
-            modelFile = codePredictorFile,
-            config = config,
-            prefillResult = prefillRunResult,
-            embeddings = embeddings,
-            previousGroup0Tokens = generatedGroup0Tokens,
-            temperature = temperature,
-            topK = topK,
-            repetitionPenalty = repetitionPenalty,
-            minNewTokens = minNewTokens,
-            step = 0
-        )
+        OrtSession.SessionOptions().use { decodeOptions ->
+            env.createSession(
+                repo.getModelFile("talker_decode.onnx").absolutePath,
+                decodeOptions
+            ).use { decodeSession ->
 
-        if (timestep0.hitEos) {
-            return GenerateCodesResult(
-                codes = LongArray(0),
-                timeSteps = 0,
-                codebooks = 16,
-                generatedGroup0Tokens = emptyList()
-            )
-        }
+                OrtSession.SessionOptions().use { cpOptions ->
+                    env.createSession(
+                        repo.getModelFile("code_predictor.onnx").absolutePath,
+                        cpOptions
+                    ).use { codePredictorSession ->
 
-        generatedSteps.add(timestep0.codes16)
-        generatedGroup0Tokens.add(timestep0.codes16[0])
+                        val timestep0 = codePredictorLoopRunner.runFromPrefill(
+                            session = codePredictorSession,
+                            config = config,
+                            prefillResult = prefillRunResult,
+                            embeddings = embeddings,
+                            previousGroup0Tokens = generatedGroup0Tokens,
+                            temperature = temperature,
+                            topK = topK,
+                            repetitionPenalty = repetitionPenalty,
+                            minNewTokens = minNewTokens,
+                            step = 0
+                        )
 
-        var nextInput = nextInputBuilder.buildFromCodes(
-            codes16 = timestep0.codes16,
-            timestepIndex = 0,
-            prefill = prefill,
-            config = config,
-            embeddings = embeddings
-        )
+                        if (timestep0.hitEos) {
+                            return GenerateCodesResult(
+                                codes = LongArray(0),
+                                timeSteps = 0,
+                                codebooks = 16,
+                                generatedGroup0Tokens = emptyList()
+                            )
+                        }
 
-        var decodeRunResult = talkerDecodeRunner.runOneStepAfterPrefill(
-            modelFile = talkerDecodeFile,
-            config = config,
-            prefillResult = prefillRunResult,
-            nextInputEmbeds = nextInput
-        )
+                        generatedSteps.add(timestep0.codes16)
+                        generatedGroup0Tokens.add(timestep0.codes16[0])
 
-        for (step in 1 until maxNewTokens) {
-            val stepCodes = codePredictorLoopRunner.runFromDecode(
-                modelFile = codePredictorFile,
-                config = config,
-                decodeResult = decodeRunResult,
-                embeddings = embeddings,
-                previousGroup0Tokens = generatedGroup0Tokens,
-                temperature = temperature,
-                topK = topK,
-                repetitionPenalty = repetitionPenalty,
-                minNewTokens = minNewTokens,
-                step = step
-            )
+                        var nextInput = nextInputBuilder.buildFromCodes(
+                            codes16 = timestep0.codes16,
+                            timestepIndex = 0,
+                            prefill = prefill,
+                            config = config,
+                            embeddings = embeddings
+                        )
 
-            if (stepCodes.hitEos) {
-                break
+                        var decodeRunResult = talkerDecodeRunner.runOneStepAfterPrefill(
+                            session = decodeSession,
+                            config = config,
+                            prefillResult = prefillRunResult,
+                            nextInputEmbeds = nextInput
+                        )
+
+                        for (step in 1 until maxNewTokens) {
+                            val stepCodes = codePredictorLoopRunner.runFromDecode(
+                                session = codePredictorSession,
+                                config = config,
+                                decodeResult = decodeRunResult,
+                                embeddings = embeddings,
+                                previousGroup0Tokens = generatedGroup0Tokens,
+                                temperature = temperature,
+                                topK = topK,
+                                repetitionPenalty = repetitionPenalty,
+                                minNewTokens = minNewTokens,
+                                step = step
+                            )
+
+                            if (stepCodes.hitEos) {
+                                break
+                            }
+
+                            generatedSteps.add(stepCodes.codes16)
+                            generatedGroup0Tokens.add(stepCodes.codes16[0])
+
+                            if (step == maxNewTokens - 1) {
+                                break
+                            }
+
+                            nextInput = nextInputBuilder.buildFromCodes(
+                                codes16 = stepCodes.codes16,
+                                timestepIndex = step,
+                                prefill = prefill,
+                                config = config,
+                                embeddings = embeddings
+                            )
+
+                            decodeRunResult = talkerDecodeRunner.runOneStepFromNextInput(
+                                session = decodeSession,
+                                config = config,
+                                previousDecodeResult = decodeRunResult,
+                                nextInputEmbeds = nextInput
+                            )
+                        }
+                    }
+                }
             }
-
-            generatedSteps.add(stepCodes.codes16)
-            generatedGroup0Tokens.add(stepCodes.codes16[0])
-
-            if (step == maxNewTokens - 1) {
-                break
-            }
-
-            nextInput = nextInputBuilder.buildFromCodes(
-                codes16 = stepCodes.codes16,
-                timestepIndex = step,
-                prefill = prefill,
-                config = config,
-                embeddings = embeddings
-            )
-
-            decodeRunResult = talkerDecodeRunner.runOneStepFromNextInput(
-                modelFile = talkerDecodeFile,
-                config = config,
-                previousDecodeResult = decodeRunResult,
-                nextInputEmbeds = nextInput
-            )
         }
 
         val timeSteps = generatedSteps.size
