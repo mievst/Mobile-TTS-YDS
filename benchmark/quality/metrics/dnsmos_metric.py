@@ -30,8 +30,15 @@ class DNSMOSMetric:
         new_len = int(round(wav.shape[-1] * self.sample_rate / src_sr))
         return F.interpolate(wav.unsqueeze(1), size=new_len, mode="linear", align_corners=False).squeeze(1)
 
-    def score(self, wav_path: str | Path) -> dict[str, Any]:
-        audio, sr = sf.read(str(wav_path), dtype="float32")
+    def score(self, wav_path: str | Path | np.ndarray, sample_rate: int | None = None) -> dict[str, Any]:
+        if isinstance(wav_path, (str, Path)):
+            audio, sr = sf.read(str(wav_path), dtype="float32")
+        else:
+            if sample_rate is None:
+                raise ValueError("sample_rate must be provided when scoring from audio data")
+            audio = np.asarray(wav_path, dtype=np.float32)
+            sr = int(sample_rate)
+
         wav = self._resample_if_needed(audio, int(sr))
         result = self._scorer(wav).detach().cpu().flatten().tolist()
         # torchmetrics DNSMOS order: [p808, sig, bak, overall]

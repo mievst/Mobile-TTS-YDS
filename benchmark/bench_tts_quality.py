@@ -10,8 +10,10 @@ import json
 import random
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 import hydra
@@ -31,14 +33,42 @@ def _set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-def _score_metric(metric: Any, wav_path: Path, reference_text: str, lang_key: str) -> dict[str, Any]:
+def _score_metric(metric: Any, wav: Any, sample_rate: int | None, reference_text: str, lang_key: str) -> dict[str, Any]:
+    # (wav, sr, text, lang) — например WER/CER
     try:
-        return metric.score(wav_path, reference_text, lang_key)
+        return metric.score(wav, sample_rate, reference_text, lang_key)
     except TypeError:
+        pass
+    # (wav, text, lang) — без sr
+    try:
+        return metric.score(wav, reference_text, lang_key)
+    except TypeError:
+        pass
+    # (wav, sr) — например DNSMOS
+    try:
+        return metric.score(wav, sample_rate)
+    except TypeError:
+        pass
+    # фолбэк: пишем во временный файл и пробуем path-based сигнатуры
+    if isinstance(wav, (np.ndarray, list)) and sample_rate is not None:
+        with NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            sf.write(tmp.name, np.asarray(wav, dtype=np.float32), sample_rate)
+            tmp_path = Path(tmp.name)
         try:
-            return metric.score(wav_path, reference_text)
-        except TypeError:
-            return metric.score(wav_path)
+            try:
+                return metric.score(tmp_path, reference_text, lang_key)
+            except TypeError:
+                return metric.score(tmp_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+    return metric.score(wav)
+
+
+def _score_metrics(metrics: dict[str, Any], wav: Any, sample_rate: int | None, reference_text: str, lang_key: str) -> dict[str, Any]:
+    row: dict[str, Any] = {}
+    for metric in metrics.values():
+        row.update(_score_metric(metric, np.squeeze(wav), sample_rate, reference_text, lang_key))
+    return row
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="quality_lite")
@@ -50,8 +80,10 @@ def main(cfg: DictConfig) -> None:
     result_dir = (project_root / cfg.run.result_dir).resolve()
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = result_dir / run_id
-    audio_dir = run_dir / "audio"
-    audio_dir.mkdir(parents=True, exist_ok=True)
+    save_audio = bool(cfg.run.get("save_audio", True))
+    audio_dir = run_dir / "audio" if save_audio else None
+    if save_audio and audio_dir is not None:
+        audio_dir.mkdir(parents=True, exist_ok=True)
 
     manifests = ensure_manifests(
         project_root=project_root,
@@ -82,20 +114,22 @@ def main(cfg: DictConfig) -> None:
             audio, sr = adapter.generate(text=sample["text"], language=language_name)
             latency_ms = (time.perf_counter() - t0) * 1000.0
 
-            wav_path = audio_dir / f"{lang_key}_{idx:04d}.wav"
-            sf.write(wav_path, audio, sr)
+            wav_path = None
+            if save_audio and audio_dir is not None:
+                wav_path = audio_dir / f"{lang_key}_{idx:04d}.wav"
+                sf.write(wav_path, np.squeeze(audio), sr)
 
             row: dict[str, Any] = {
                 "sample_id": sample["id"],
                 "lang": lang_key,
                 "text": sample["text"],
-                "audio_path": str(wav_path),
+                "audio_path": str(wav_path) if wav_path is not None else None,
                 "sample_rate": int(sr),
                 "latency_ms": latency_ms,
             }
 
-            for metric in metrics.values():
-                row.update(_score_metric(metric, wav_path, sample["text"], lang_key))
+            if metrics:
+                row.update(_score_metrics(metrics, audio, int(sr), sample["text"], lang_key))
 
             all_rows.append(row)
 

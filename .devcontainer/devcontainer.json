@@ -31,8 +31,8 @@
 	"runArgs": [
 		"--gpus",
 		"all",
-		"--cpus=2.0",
-		"--memory=4g",
+		"--cpus=4.0",
+		"--memory=20g",
 		"--memory-reservation=2g"
 	]
 }

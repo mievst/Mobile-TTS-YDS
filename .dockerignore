@@ -35,6 +35,7 @@ logs/
 /tmp
 temp/
 benchmark/tmp_results/
+.hf_cache/
 
 # Ignore Docker compose overrides and local config
 docker-compose.override.yml

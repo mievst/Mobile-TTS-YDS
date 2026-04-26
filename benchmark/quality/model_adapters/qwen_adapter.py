@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, List
 
 import numpy as np
 import torch
@@ -34,16 +34,29 @@ class QwenTTSAdapter:
             self.model = Qwen3TTSModel.from_pretrained(model_id, device_map=device, dtype=self.dtype)
 
     def generate(self, text: str, language: str) -> tuple[np.ndarray, int]:
+        return self.generate_batch([text], [language])
+
+    def generate_batch(self, texts: list[str], languages: list[str] | None = None) -> tuple[list[np.ndarray], int]:
         if self._device != "cpu":
             torch.cuda.synchronize(self._device)
+
+        if languages is None:
+            languages = [None] * len(texts)
+        speaker = [self.voice] * len(texts)
+
         wavs, sr = self.model.generate_custom_voice(
-            text=text,
-            language=language,
-            speaker=self.voice,
+            text=texts,
+            language=languages,
+            speaker=speaker,
         )
+
         if self._device != "cpu":
             torch.cuda.synchronize(self._device)
-        audio = wavs[0]
-        if isinstance(audio, torch.Tensor):
-            audio = audio.cpu().numpy()
-        return audio.astype(np.float32), int(sr)
+
+        audios: list[np.ndarray] = []
+        for audio in wavs:
+            if isinstance(audio, torch.Tensor):
+                audio = audio.cpu().numpy()
+            audios.append(audio.astype(np.float32))
+
+        return audios, int(sr)

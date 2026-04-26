@@ -54,5 +54,13 @@ docker-compose.override.yml
 .DS_Store
 Thumbs.db
 
+*.wav
+
 # Notebook checkpoints
 .ipynb_checkpoints/
+.hydra/
+benchmark/.hf_cache/
+notebooks/qwen3-tts-onnx/
+notebooks/qwen3-tts-onnx-int8/
+notebooks/qwen3-tts-onnx-int8-int4/
+notebooks/qwen3-tts-onnx-quantized/

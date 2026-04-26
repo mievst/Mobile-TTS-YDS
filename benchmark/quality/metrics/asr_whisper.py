@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 from jiwer import cer, wer
 
 
@@ -37,9 +38,16 @@ class WhisperWerCerMetric:
             out = out.lower()
         return out
 
-    def score(self, wav_path: str | Path, reference_text: str, lang_key: str) -> dict[str, str | float]:
+    def score(
+        self,
+        wav_path: str | Path | np.ndarray,
+        sample_rate: int | None,
+        reference_text: str,
+        lang_key: str,
+    ) -> dict[str, str | float]:
         language = "ru" if lang_key == "ru" else "en"
-        segments, _ = self._model.transcribe(str(wav_path), language=language, beam_size=self._beam_size)
+        source = str(wav_path) if isinstance(wav_path, (str, Path)) else wav_path
+        segments, _ = self._model.transcribe(source, language=language, beam_size=self._beam_size)
         hyp = " ".join(seg.text.strip() for seg in segments).strip()
         ref_n = self._norm(reference_text)
         hyp_n = self._norm(hyp)

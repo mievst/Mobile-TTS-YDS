@@ -10,7 +10,7 @@ from omegaconf import DictConfig
 from quality.datasets import ensure_manifests, setup_hf_cache
 
 
-@hydra.main(version_base=None, config_path="configs", config_name="quality_lite")
+@hydra.main(version_base=None, config_path="configs", config_name="quality_big")
 def main(cfg: DictConfig) -> None:
     project_root = Path(hydra.utils.get_original_cwd())
     setup_hf_cache(project_root)

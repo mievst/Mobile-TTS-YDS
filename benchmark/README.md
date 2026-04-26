@@ -32,8 +32,8 @@ GPU_DEVICE=0 NUM_PROMPTS=20 MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice bash benc
 
 ### Датасеты
 
-- RU: `Vikhrmodels/ToneBooksPlus`, split `validation`, 500 фраз
-- EN: `openslr/librispeech_asr`, split `validation.clean`, 500 фраз
+- RU: `Vikhrmodels/ToneBooksPlus`, split `validation`
+- EN: `openslr/librispeech_asr`, split `validation.clean`
 
 Для воспроизводимости формируются frozen-manifest файлы в `benchmark/data/manifests`.
 
@@ -65,10 +65,16 @@ bash benchmark/run_quality_benchmark.sh
 
 ```bash
 # GPU для TTS + Whisper на CUDA
-python benchmark/bench_tts_quality.py model.gpu_device=0 metrics.wer_cer.device=cuda
+python benchmark/bench_tts_quality.py model.gpu_device="0" metrics.wer_cer.device=cuda
 
 # Только WER/CER, без DNSMOS
 python benchmark/bench_tts_quality.py metrics.dnsmos.enabled=false
+
+# Отключить сохранение WAV и ускорить прогон
+python benchmark/bench_tts_quality.py run.save_audio=false
+
+# Включить батч-генерацию и потоковую оценку метрик
+python benchmark/bench_tts_quality.py run.batch_size=4 run.score_workers=4
 
 # Другое имя эксперимента
 python benchmark/bench_tts_quality.py run.config_name=my_experiment
