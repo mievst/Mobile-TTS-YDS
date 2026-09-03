@@ -16,6 +16,13 @@ Android-приложение для локального запуска ONNX-э�
 - воспроизведение результата в приложении.
 ---
 
+# 1.1. Демо
+
+Инференс прямо на Android-устройстве:
+
+[`../assets/demo-video.mp4`](../assets/demo-video.mp4)
+
+Примеры синтеза (артефакты наивной квантизации «в лоб» и финальный результат) — в [`../assets/qwen-tts-audio/`](../assets/qwen-tts-audio/).
 
 # 2. Файлы модели и Orchestration layer
 
@@ -257,4 +264,4 @@ com.example.qwen3_tts
 `Play Output` - Воспроизведение последнего сохраненного (синтезированного) аудио  
 `Stop Playback` - Остановка аудио  
 
-https://github.com/user-attachments/assets/7c7218cc-aca7-4fd9-9971-07c3f1f4e821
+Демо-видео приложения: [`../assets/demo-video.mp4`](../assets/demo-video.mp4).

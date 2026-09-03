@@ -55,6 +55,7 @@ docker-compose.override.yml
 Thumbs.db
 
 *.wav
+!assets/qwen-tts-audio/*.wav
 
 # Notebook checkpoints
 .ipynb_checkpoints/
