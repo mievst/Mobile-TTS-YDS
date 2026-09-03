@@ -6,18 +6,20 @@
 
 Инференс Qwen3-TTS «из текста в аудио» прямо на Android-устройстве:
 
-[`assets/demo-video.mp4`](assets/demo-video.mp4)
+[`▶ demo-video.mp4`](assets/demo-video.mp4)
+
+<video src="assets/demo-video.mp4" controls width="480"></video>
 
 Примеры синтеза — в [`assets/qwen-tts-audio/`](assets/qwen-tts-audio/). 👂 Прослушать наглядно, как квантизация влияет на качество:
 
 | Вариант | Аудио |
 |---|---|
-| Базовый (оригинал) | [`original.wav`](assets/qwen-tts-audio/original.wav) |
-| `embeddings` FP16 | [`Embeddings FP16.wav`](assets/qwen-tts-audio/Embeddings%20FP16.wav) |
-| `talker_decode` до INT4 | [`talker_decode до int4.wav`](assets/qwen-tts-audio/talker_decode%20до%20int4.wav) |
-| `talker_prefill` INT8 + `talker_decode` INT4 | [`talker_prefill int8 + talker_decode int 4.wav`](assets/qwen-tts-audio/talker_prefill%20int8%20%2B%20talker_decode%20int%204.wav) |
-| Артефакт наивной квантизации «в лоб» (модель «рассмешили») | [`смех.wav`](assets/qwen-tts-audio/смех.wav), [`смех2.wav`](assets/qwen-tts-audio/смех2.wav) |
-| **Финальный результат** | [`итоговая.wav`](assets/qwen-tts-audio/итоговая.wav) |
+| Базовый (оригинал) | <audio src="assets/qwen-tts-audio/original.wav" controls></audio> |
+| `embeddings` FP16 | <audio src="assets/qwen-tts-audio/embeddings-fp16.wav" controls></audio> |
+| `talker_decode` → INT4 | <audio src="assets/qwen-tts-audio/talker-decode-int4.wav" controls></audio> |
+| `talker_prefill` INT8 + `talker_decode` INT4 | <audio src="assets/qwen-tts-audio/talker-prefill-int8-decode-int4.wav" controls></audio> |
+| Артефакт наивной квантизации «в лоб» (модель «рассмешили») | <audio src="assets/qwen-tts-audio/laugh.wav" controls></audio> <audio src="assets/qwen-tts-audio/laugh2.wav" controls></audio> |
+| **Финальный результат** | <audio src="assets/qwen-tts-audio/final.wav" controls></audio> |
 
 ## 📊 Результаты
 
