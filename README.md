@@ -6,18 +6,22 @@
 
 Инференс Qwen3-TTS «из текста в аудио» прямо на Android-устройстве:
 
-[▶ demo-video.mp4](assets/demo-video.mp4)
+
+
+https://github.com/user-attachments/assets/1f9e3ecc-c288-4d24-a284-259ab0865a21
+
+
 
 Примеры синтеза — как квантизация влияет на качество:
 
 | Вариант | Аудио |
 |---|---|
-| Базовый (оригинал) | [▶ original.wav](assets/qwen-tts-audio/original.wav) |
-| `embeddings` FP16 | [▶ embeddings-fp16.wav](assets/qwen-tts-audio/embeddings-fp16.wav) |
-| `talker_decode` → INT4 | [▶ talker-decode-int4.wav](assets/qwen-tts-audio/talker-decode-int4.wav) |
-| `talker_prefill` INT8 + `talker_decode` INT4 | [▶ talker-prefill-int8-decode-int4.wav](assets/qwen-tts-audio/talker-prefill-int8-decode-int4.wav) |
-| Артефакт наивной квантизации «в лоб» (модель «рассмешили») | [▶ laugh.wav](assets/qwen-tts-audio/laugh.wav) [▶ laugh2.wav](assets/qwen-tts-audio/laugh2.wav) |
-| **Финальный результат** | [▶ final.wav](assets/qwen-tts-audio/final.wav) |
+| Базовый (оригинал) | [original.wav](https://github.com/user-attachments/files/31812435/original.wav) |
+| `embeddings` FP16 | [embeddings-fp16.wav](https://github.com/user-attachments/files/31812457/embeddings-fp16.wav) |
+| `talker_decode` → INT4 | [talker-decode-int4.wav](https://github.com/user-attachments/files/31812463/talker-decode-int4.wav) |
+| `talker_prefill` INT8 + `talker_decode` INT4 | [talker-prefill-int8-decode-int4.wav](https://github.com/user-attachments/files/31812474/talker-prefill-int8-decode-int4.wav) |
+| Артефакт наивной квантизации «в лоб» (модель «рассмешили») | [laugh.wav](https://github.com/user-attachments/files/31812477/laugh.wav) [laugh2.wav](https://github.com/user-attachments/files/31812485/laugh2.wav) |
+| **Финальный результат** | [final.wav](https://github.com/user-attachments/files/31812494/final.wav) |
 
 ## 📊 Результаты
 
